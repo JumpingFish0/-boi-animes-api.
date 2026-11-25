@@ -63,9 +63,9 @@ const blitzResolveProvider = (id) => providers[id?.toLowerCase()] || null;
 const blitzResolveMeta = (id) => metaProviders[id?.toLowerCase()] || metaProviders.anilist;
 
 const blitzNormalizeUnitId = (id) => String(id).replace(/\/(\d+)\/\1$/, '/$1');
-const blitzNormalizeTitle = (value) => String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const blitzNormalizeTitle = (value) => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 const blitzEpisodeNumber = (id) => {
-  const match = String(id).match(/\\/(\\d+(?:\\.\\d+)?)(?:\\/|$)/);
+  const match = String(id).match(/\/(\d+(?:\.\d+)?)(?:\/|$)/);
   return match ? Number(match[1]) : 1;
 };
 async function blitzFallbackStream(title, episode, language, failedProvider) {
