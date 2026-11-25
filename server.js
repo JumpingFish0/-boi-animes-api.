@@ -61,12 +61,14 @@ const mangaProviders = ['mangadex', 'weebcentral', 'mangapill'];
 const blitzResolveProvider = (id) => providers[id?.toLowerCase()] || null;
 const blitzResolveMeta = (id) => metaProviders[id?.toLowerCase()] || metaProviders.anilist;
 
+const blitzNormalizeUnitId = (id) => String(id).replace(/\/(\d+)\/\1$/, '/$1');
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'Blitz Anime & Manga API',
     author: 'Blitz (blitzlabx)',
-    version: '2.5.0',
+    version: '2.6.0',
     uptime: process.uptime(),
     timestamp: new Date().toISOString(),
     animeProviders,
@@ -140,7 +142,7 @@ app.get('/api/v1/stream', async (req, res) => {
     if (!id) return res.status(400).json({ error: 'Missing id', by: 'Blitz' });
     const p = blitzResolveProvider(provider) || blitzResolveProvider(String(id).split(':')[0]);
     if (!p) return res.status(400).json({ error: 'Could not resolve provider' });
-    const stream = await p.resolveStream(String(id), language);
+    const stream = await p.resolveStream(blitzNormalizeUnitId(id), language);
     res.json({ stream, by: 'Blitz (blitzlabx)' });
   } catch (err) {
     res.status(500).json({ error: err.message, by: 'Blitz' });
