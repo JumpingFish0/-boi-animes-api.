@@ -135,7 +135,7 @@ app.get('/api/v1/search', async (req, res) => {
     const p = blitzResolveProvider(provider);
     if (!p) return res.status(400).json({ error: 'Unknown provider', available: Object.keys(providers) });
     const results = await p.search(String(q));
-    if (Array.isArray(results)) for (const item of results) if (item?.id && item?.title) titleByMediaId.set(String(item.id), item.title);
+    if (Array.isArray(results)) for (const item of results) if (item?.id && item?.title) { const rawId = String(item.id).replace(/^[a-z]+:/i, '').split('/')[0]; titleByMediaId.set(String(item.id), item.title); titleByMediaId.set(rawId, item.title); }
     res.json({ results, provider, type: mangaProviders.includes(provider) ? 'manga' : 'anime', by: 'Blitz (blitzlabx)' });
   } catch (err) {
     res.status(500).json({ error: err.message, by: 'Blitz' });
@@ -187,7 +187,7 @@ app.get('/api/v1/stream', async (req, res) => {
     } catch (err) {
       originalError = err;
     }
-    const mediaId = String(id).split('/')[0];
+    const mediaId = String(id).replace(/^[a-z]+:/i, '').split('/')[0];
     const resolvedTitle = String(title || titleByMediaId.get(mediaId) || titleByMediaId.get(String(id).split('/')[0]) || '');
     const fallback = await blitzFallbackStream(resolvedTitle, blitzEpisodeNumber(id), language, providerId);
     if (fallback) return res.json({ stream: fallback, provider: fallback.provider, fallback: true, by: 'Blitz (blitzlabx)' });
