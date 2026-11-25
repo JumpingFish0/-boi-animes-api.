@@ -70,29 +70,59 @@ const blitzEpisodeNumber = (id) => {
 };
 async function blitzFallbackStream(title, episode, language, failedProvider) {
   if (!title) return null;
+  const normalize = (value) => blitzNormalizeTitle(value)
+    .replace(/\\b(season|temporada|part|cour|tv)\\s*\\d+\\b/g, ' ')
+    .replace(/\\b(19|20)\\d{2}\\b/g, ' ')
+    .replace(/\\s+/g, ' ').trim();
+  const wanted = normalize(title);
+  const wantedTokens = new Set(wanted.split(' ').filter((word) => word.length > 2));
   const candidates = animeProviders.filter((name) => name !== failedProvider);
+  const failures = [];
   for (const name of candidates) {
     try {
       const results = await providers[name].search(title);
-      if (!Array.isArray(results) || !results.length) continue;
-      const wanted = blitzNormalizeTitle(title);
-      const ranked = results.map((item) => ({
-        item,
-        score: blitzNormalizeTitle(item.title) === wanted ? 100 :
-          (blitzNormalizeTitle(item.title).includes(wanted) || wanted.includes(blitzNormalizeTitle(item.title)) ? 75 : 0),
-      })).filter((entry) => entry.score > 0).sort((a, b) => b.score - a.score);
-      if (!ranked.length) continue;
-      const units = await providers[name].fetchContentUnits(ranked[0].item.id);
-      const unit = units.find((item) => Number(item.number) === Number(episode));
-      if (!unit) continue;
-      const stream = await providers[name].resolveStream(unit.id, language);
-      if (stream?.type === 'video' && stream.streams?.length) {
-        return { ...stream, provider: name, matchedTitle: ranked[0].item.title, fallback: true };
+      if (!Array.isArray(results) || !results.length) {
+        failures.push(name + ': nenhum resultado');
+        continue;
       }
+      const ranked = results.map((item) => {
+        const candidateTitle = normalize(item.title || item.name || '');
+        const tokens = candidateTitle.split(' ').filter((word) => word.length > 2);
+        const overlap = tokens.filter((word) => wantedTokens.has(word)).length;
+        const score = candidateTitle === wanted ? 100 :
+          (candidateTitle.includes(wanted) || wanted.includes(candidateTitle) ? 85 :
+          Math.round(100 * overlap / Math.max(wantedTokens.size, 1)));
+        return { item, score };
+      }).filter((entry) => entry.score >= 55).sort((a, b) => b.score - a.score);
+      if (!ranked.length) {
+        failures.push(name + ': título não correspondeu');
+        continue;
+      }
+      for (const match of ranked.slice(0, 3)) {
+        const units = await providers[name].fetchContentUnits(match.item.id);
+        if (!Array.isArray(units) || !units.length) continue;
+        const unit = units.find((item) => {
+          const number = Number(item.number ?? item.episode ?? item.episodeNumber);
+          return Number.isFinite(number) && number === Number(episode);
+        }) || units.find((item) => {
+          const unitId = String(item.id || '');
+          const found = unitId.match(/\\/(\\d+(?:\\.\\d+)?)(?:\\/|$)/);
+          return found && Number(found[1]) === Number(episode);
+        });
+        if (!unit) continue;
+        const stream = await providers[name].resolveStream(unit.id, language);
+        if (stream?.type === 'video' && stream.streams?.length) {
+          console.log('[fallback] sucesso:', name, match.item.title, 'episódio', episode);
+          return { ...stream, provider: name, matchedTitle: match.item.title, fallback: true };
+        }
+      }
+      failures.push(name + ': episódio ou vídeo indisponível');
     } catch (error) {
+      failures.push(name + ': ' + error.message);
       console.warn('[fallback]', name, error.message);
     }
   }
+  console.warn('[fallback] nenhuma fonte alternativa funcionou:', failures.join(' | '));
   return null;
 }
 
